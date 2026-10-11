@@ -1,0 +1,231 @@
+name: Build & Release APK
+
+# Run it from the "Actions" tab -> "Build & Release APK" -> "Run workflow",
+# or push a tag like v1.0.0. Produces a signed APK, a SHA-256 file, a
+# build-info.json and a GitHub build-provenance attestation (JSON) proving the
+# APK was built by this workflow from this exact commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Mark the release as a pre-release"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+      - "!v*-rc*"
+
+permissions:
+  contents: write       # create the release
+  id-token: write       # sign the attestation (Sigstore)
+  attestations: write   # store the attestation
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP_SLUG: Govind-SMS
+  APP_ID: shri.govind.sms
+
+jobs:
+  build-release:
+    name: Build, sign, attest and release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Ensure the Gradle wrapper can run on the GitHub runner.
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Validate Gradle wrapper & set up Gradle
+        uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
+        with:
+          validate-wrappers: true
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools'
+
+      - name: Work out version and tag
+        id: meta
+        run: |
+          NAME=$(sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -1)
+          CODE=$(sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts | head -1)
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="v${NAME}"
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"   >> "$GITHUB_OUTPUT"
+          echo "apk=${APP_SLUG}-${TAG}.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Restore keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::Secret RELEASE_KEYSTORE_BASE64 is not set (Settings -> Secrets and variables -> Actions)"
+            exit 1
+          fi
+          if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Secrets KEYSTORE_PASSWORD and KEY_PASSWORD must both be set"
+            exit 1
+          fi
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > release.keystore
+
+      # Informational: a failing test is reported but never blocks the APK build.
+      - name: Run unit tests
+        continue-on-error: true
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Build release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          LC_ALL: C
+          TZ: UTC
+        run: |
+          # an unset optional secret arrives as an empty string; fall back to the default alias
+          [ -n "$KEY_ALIAS" ] || unset KEY_ALIAS
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f release.keystore
+
+      - name: Rename APK and verify it
+        id: apk
+        run: |
+          src=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          cp "$src" "${{ steps.meta.outputs.apk }}"
+          APK="${{ steps.meta.outputs.apk }}"
+          BT="$(ls -d "${ANDROID_HOME}"/build-tools/*/ | sort -V | tail -1)"
+
+          echo "--- signature"
+          "$BT/apksigner" verify --print-certs "$APK" | tee sig.txt
+          CERT=$(grep 'SHA-256 digest' sig.txt | head -1 | sed 's/.*digest: *//' | tr -d ' :' | tr 'A-F' 'a-f')
+          [ -n "$CERT" ] || { echo "::error::APK is not signed"; exit 1; }
+
+          echo "--- package id"
+          PKG=$("$BT/aapt2" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+          echo "package=$PKG"
+          [ "$PKG" = "$APP_ID" ] || { echo "::error::Unexpected package id: $PKG (expected $APP_ID)"; exit 1; }
+
+          sha256sum "$APK" > "$APK.sha256"
+          echo "cert=$CERT" >> "$GITHUB_OUTPUT"
+          echo "sha=$(cut -d' ' -f1 "$APK.sha256")" >> "$GITHUB_OUTPUT"
+
+      - name: Write build-info.json
+        env:
+          APK: ${{ steps.meta.outputs.apk }}
+        run: |
+          JAVA_VER="$(java -version 2>&1 | head -1 | tr -d '"')"
+          cat > "$APK.build-info.json" <<EOF
+          {
+            "app": "Govind SMS",
+            "maintainer": "Shri Govind Jangra",
+            "basedOn": "Messages by an1ndra - https://github.com/an1ndra/Messages (GPL-3.0)",
+            "package": "$APP_ID",
+            "versionName": "${{ steps.meta.outputs.name }}",
+            "versionCode": ${{ steps.meta.outputs.code }},
+            "apk": "$APK",
+            "apkSha256": "${{ steps.apk.outputs.sha }}",
+            "signingCertSha256": "${{ steps.apk.outputs.cert }}",
+            "sourceRepository": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}",
+            "sourceCommit": "${GITHUB_SHA}",
+            "sourceRef": "${GITHUB_REF}",
+            "builtByWorkflow": "${GITHUB_WORKFLOW_REF}",
+            "workflowRun": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "runner": "${{ runner.os }} ${{ runner.arch }}",
+            "java": "$JAVA_VER",
+            "builtAtUtc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          jq . "$APK.build-info.json"
+
+      # Signed by GitHub (Sigstore): ties the APK hash to this repo, commit and workflow.
+      # Needs a public repo (private repos need GitHub Enterprise Cloud); the step is
+      # allowed to fail so the APK is still released either way.
+      - name: Attest build provenance
+        id: attest
+        continue-on-error: true
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.meta.outputs.apk }}
+
+      - name: Collect attestation JSON
+        env:
+          APK: ${{ steps.meta.outputs.apk }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          if [ -n "$BUNDLE" ] && [ -f "$BUNDLE" ]; then
+            cp "$BUNDLE" "$APK.attestation.json"
+            echo "Attestation saved as $APK.attestation.json"
+          else
+            echo "::warning::No attestation was produced (private repo without Enterprise?). Release will not include the .attestation.json"
+          fi
+
+      - name: Write release notes
+        env:
+          APK: ${{ steps.meta.outputs.apk }}
+        run: |
+          {
+            echo "### Govind SMS ${{ steps.meta.outputs.tag }}"
+            echo ""
+            echo "Maintained by Shri Govind Jangra. Based on [Messages](https://github.com/an1ndra/Messages) by an1ndra (GPL-3.0)."
+            echo ""
+            echo "- Package: \`$APP_ID\`"
+            echo "- APK SHA-256: \`${{ steps.apk.outputs.sha }}\`"
+            echo "- Signing certificate SHA-256: \`${{ steps.apk.outputs.cert }}\`"
+            echo "- Built from commit [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) by [this workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+            echo ""
+            echo "#### Verify that this APK was built from the source code"
+            echo "\`\`\`"
+            echo "gh attestation verify $APK --repo ${GITHUB_REPOSITORY}"
+            echo "sha256sum -c $APK.sha256"
+            echo "\`\`\`"
+            echo "The attached \`$APK.attestation.json\` is the signed provenance bundle and \`$APK.build-info.json\` lists the build details."
+          } > release-notes.md
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-artifacts
+          path: |
+            ${{ steps.meta.outputs.apk }}*
+            release-notes.md
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Govind SMS ${{ steps.meta.outputs.tag }}
+          prerelease: ${{ inputs.prerelease == true }}
+          generate_release_notes: true
+          body_path: release-notes.md
+          files: |
+            ${{ steps.meta.outputs.apk }}
+            ${{ steps.meta.outputs.apk }}.attestation.json
+          fail_on_unmatched_files: false
