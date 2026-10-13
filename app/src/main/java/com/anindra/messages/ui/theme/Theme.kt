@@ -21,12 +21,12 @@ import com.anindra.messages.data.SettingsStore
 /**
  * Material 3 color system (m3.material.io/styles/color/system).
  *
- * Govind SMS palette: forest green (primary / surfaces) with saffron-orange accents,
+ * Govind SMS palette: neutral modern dark surfaces with a light kesariya accent,
  * mapped to the standard M3 scheme roles for light & dark.
  * UI code must reference roles via MaterialTheme.colorScheme — never hardcode.
  */
 
-// ────────────────────────── Light scheme (green + orange) ───────────────────────
+// ────────────────────────── Light scheme (unchanged) ─────────────────────────────
 private val LightColors = lightColorScheme(
     primary = Color(0xFF2E7D32),
     onPrimary = Color(0xFFFFFFFF),
@@ -65,43 +65,56 @@ private val LightColors = lightColorScheme(
     surfaceContainerHighest = Color(0xFFDEE4DC)
 )
 
-// ────────────────────────── Dark scheme (green + orange) ────────────────────────
+// ────────────────────────── Dark scheme (modern dark + kesariya) ─────────────────
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFFFA040),
-    onPrimary = Color(0xFF4A2400),
-    primaryContainer = Color(0xFF2E7D32),
-    onPrimaryContainer = Color(0xFFE8F5E9),
-    inversePrimary = Color(0xFFB35800),
-    secondary = Color(0xFF81C784),
-    onSecondary = Color(0xFF00390F),
-    secondaryContainer = Color(0xFF1B5E20),
-    onSecondaryContainer = Color(0xFFC8EBCA),
-    tertiary = Color(0xFFFFCC80),
-    onTertiary = Color(0xFF4A2800),
-    tertiaryContainer = Color(0xFF7A4100),
-    onTertiaryContainer = Color(0xFFFFE0B2),
+    // Kesariya accent
+    primary = Color(0xFFFF8A3D),
+    onPrimary = Color(0xFF2A1508),
+    primaryContainer = Color(0xFF303030),
+    onPrimaryContainer = Color(0xFFFFFFFF),
+    inversePrimary = Color(0xFFE66F24),
+
+    // Neutral secondary
+    secondary = Color(0xFFBDBDBD),
+    onSecondary = Color(0xFF202020),
+    secondaryContainer = Color(0xFF242424),
+    onSecondaryContainer = Color(0xFFFFFFFF),
+
+    // Soft kesariya tertiary
+    tertiary = Color(0xFFFFB074),
+    onTertiary = Color(0xFF2A1508),
+    tertiaryContainer = Color(0xFF3A261A),
+    onTertiaryContainer = Color(0xFFFFDCC7),
+
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF08240F),
-    onBackground = Color(0xFFE6F2E7),
-    surface = Color(0xFF08240F),
-    onSurface = Color(0xFFE6F2E7),
-    surfaceVariant = Color(0xFF1E4A29),
-    onSurfaceVariant = Color(0xFFBFD8C2),
-    outline = Color(0xFF6E9A76),
-    outlineVariant = Color(0xFF2C5A37),
+
+    // Modern dark UI
+    background = Color(0xFF121212),
+    onBackground = Color(0xFFFFFFFF),
+    surface = Color(0xFF121212),
+    onSurface = Color(0xFFFFFFFF),
+
+    // Message / secondary areas
+    surfaceVariant = Color(0xFF242424),
+    onSurfaceVariant = Color(0xFFBDBDBD),
+
+    outline = Color(0xFF8E8E8E),
+    outlineVariant = Color(0xFF3A3A3A),
     scrim = Color(0xFF000000),
-    inverseSurface = Color(0xFFDDEEDF),
-    inverseOnSurface = Color(0xFF12301A),
-    surfaceDim = Color(0xFF061D0C),
-    surfaceBright = Color(0xFF2A5A35),
-    surfaceContainerLowest = Color(0xFF051A0A),
-    surfaceContainerLow = Color(0xFF0C2D14),
-    surfaceContainer = Color(0xFF103519),
-    surfaceContainerHigh = Color(0xFF164321),
-    surfaceContainerHighest = Color(0xFF1D512A)
+
+    inverseSurface = Color(0xFFE5E5E5),
+    inverseOnSurface = Color(0xFF202020),
+
+    surfaceDim = Color(0xFF0F0F0F),
+    surfaceBright = Color(0xFF303030),
+    surfaceContainerLowest = Color(0xFF0F0F0F),
+    surfaceContainerLow = Color(0xFF181818),
+    surfaceContainer = Color(0xFF1C1C1C),
+    surfaceContainerHigh = Color(0xFF242424),
+    surfaceContainerHighest = Color(0xFF303030)
 )
 
 // ─────────────── High-contrast schemes (accessibility mode) ───────────────
@@ -146,52 +159,69 @@ private val LightHighContrastColors = lightColorScheme(
 )
 
 private val DarkHighContrastColors = darkColorScheme(
+    // High-contrast dark mode: pure black with clear kesariya accent
     primary = Color(0xFFFFD2A0),
     onPrimary = Color(0xFF000000),
-    primaryContainer = Color(0xFFFFB878),
+    primaryContainer = Color(0xFFFF8A3D),
     onPrimaryContainer = Color(0xFF000000),
-    inversePrimary = Color(0xFF8F3F00),
-    secondary = Color(0xFFC8EBCA),
+    inversePrimary = Color(0xFFE66F24),
+
+    secondary = Color(0xFFE0E0E0),
     onSecondary = Color(0xFF000000),
-    secondaryContainer = Color(0xFF2E5A33),
+    secondaryContainer = Color(0xFF242424),
     onSecondaryContainer = Color(0xFFFFFFFF),
-    tertiary = Color(0xFFFFE0B2),
+
+    tertiary = Color(0xFFFFDCC7),
     onTertiary = Color(0xFF000000),
-    tertiaryContainer = Color(0xFF7A4100),
+    tertiaryContainer = Color(0xFF3A261A),
     onTertiaryContainer = Color(0xFFFFFFFF),
+
     error = Color(0xFFFFDAD6),
     onError = Color(0xFF000000),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
+
     background = Color(0xFF000000),
     onBackground = Color(0xFFFFFFFF),
     surface = Color(0xFF000000),
     onSurface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFF2B4A31),
-    onSurfaceVariant = Color(0xFFE3EEE4),
-    outline = Color(0xFFA9C4AD),
-    outlineVariant = Color(0xFF7E9C84),
+
+    surfaceVariant = Color(0xFF242424),
+    onSurfaceVariant = Color(0xFFE0E0E0),
+    outline = Color(0xFFBDBDBD),
+    outlineVariant = Color(0xFF707070),
     scrim = Color(0xFF000000),
-    inverseSurface = Color(0xFFDDEEDF),
+
+    inverseSurface = Color(0xFFE5E5E5),
     inverseOnSurface = Color(0xFF000000),
+
     surfaceDim = Color(0xFF000000),
-    surfaceBright = Color(0xFF2D4A33),
+    surfaceBright = Color(0xFF303030),
     surfaceContainerLowest = Color(0xFF000000),
-    surfaceContainerLow = Color(0xFF06190B),
-    surfaceContainer = Color(0xFF0E2614),
-    surfaceContainerHigh = Color(0xFF173B20),
-    surfaceContainerHighest = Color(0xFF20492A)
+    surfaceContainerLow = Color(0xFF101010),
+    surfaceContainer = Color(0xFF181818),
+    surfaceContainerHigh = Color(0xFF242424),
+    surfaceContainerHighest = Color(0xFF303030)
 )
 
 // Semantic aliases so screens express intent, not raw colors.
-val ColorScheme.outgoingBubble: Color get() = primaryContainer          // green bubble
-val ColorScheme.incomingBubble: Color get() = surfaceContainerHighest   // GM grey bubble
-val ColorScheme.chatBar: Color get() = surfaceContainerLow              // input / top bars
-val ColorScheme.inputPill: Color get() = surfaceContainerHigh           // text field pill
+val ColorScheme.outgoingBubble: Color
+    get() = if (background.luminance() < 0.5f) Color(0xFF303030) else primaryContainer
+
+val ColorScheme.incomingBubble: Color
+    get() = if (background.luminance() < 0.5f) Color(0xFF242424) else surfaceContainerHighest
+
+val ColorScheme.chatBar: Color
+    get() = if (background.luminance() < 0.5f) Color(0xFF1C1C1C) else surfaceContainerLow
+
+val ColorScheme.inputPill: Color
+    get() = if (background.luminance() < 0.5f) Color(0xFF1C1C1C) else surfaceContainerHigh
+
 val ColorScheme.selectedBubble: Color
-    get() = if (background.luminance() < 0.5f) Color(0xFFFFB74D) else Color(0xFFB04A00)
+    get() = if (background.luminance() < 0.5f) Color(0xFFFF8A3D) else Color(0xFFB04A00)
+
 val ColorScheme.onSelectedBubble: Color
-    get() = if (background.luminance() < 0.5f) Color(0xFF3E1F00) else Color(0xFFFFFFFF)
+    get() = if (background.luminance() < 0.5f) Color(0xFF2A1508) else Color(0xFFFFFFFF)
 
 // Chat date separators and message times use the platform default typeface
 // at a slightly lighter weight than surrounding text.
